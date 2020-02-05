@@ -31,23 +31,23 @@ class Wplms_Activecampaign{
 	* @param string $endpoint Amazon URI
 	* @return void
 	*/
-	public function __construct($api_key = null)
+	public function __construct($api_key = null,$api_url = null)
 	{
 		$this->apikey = $api_key;
+		$this->api_url = $api_url;
 		$this->add_contact=[];
-		$this->apiurl = 'https://api.activecampaign.com/v3/';
+		$this->apiurl = $api_url.'/api/3/';
 		$this->interest_ids = array();
 		$this->args = array(
 		 	'headers' => array(
-				'X-Auth-Token' => 'api-key '.$api_key,
-				'Content-Type' => 'application/json'
+				'Api-Token' => $api_key
 			)
 		);
 	}
 
 
 	function get_lists(){
-		$response = wp_remote_get( $this->apiurl.'campaigns/?perPage=9999', $this->args );
+		$response = wp_remote_get( $this->apiurl.'lists/?perPage=9999', $this->args );
 		$body = json_decode( wp_remote_retrieve_body( $response ));
 		return $body;
 	}
@@ -58,7 +58,7 @@ class Wplms_Activecampaign{
 
 		$args['body'] = json_encode($user_args);
 
-		$response = wp_remote_post(  $this->apiurl . 'campaigns/' . $list_id . '/contacts/' . md5(strtolower($email)), $args );	
+		$response = wp_remote_post(  $this->apiurl . 'lists/' . $list_id . '/contacts/' . md5(strtolower($email)), $args );	
 
 		$body = json_decode( $response['body'] );
 		if ( $response['response']['code'] == 200) {
