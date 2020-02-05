@@ -103,8 +103,8 @@ class Wplms_Activecampaign_Init{
 		if(!empty($this->lists))
 			return $this->lists;
 
-		if(isset($this->settings) && isset($this->settings['activecampaign_api_key'])){
-			$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		if(isset($this->settings) && isset($this->settings['activecampaign_api_key']) && isset($this->settings['activecampaign_api_url'])){
+			$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 			$lists = $gr->get_lists(); 
 			if(!empty($lists)){
 				foreach($lists as $list){
@@ -160,9 +160,9 @@ class Wplms_Activecampaign_Init{
 
         if (!empty($_POST['subscribe_activecampaign']) && empty($bp->signup->errors)) {
             
-            if(isset($this->settings) && isset($this->settings['activecampaign_api_key']) && !empty($_POST['signup_email']) && !empty($this->settings['enable_registration'])){
+            if(isset($this->settings) && isset($this->settings['activecampaign_api_key']) && isset($this->settings['activecampaign_api_url']) && !empty($_POST['signup_email']) && !empty($this->settings['enable_registration'])){
 
-				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 
 				$args = apply_filters('wplms_activecampaign_list_filters',array(
 					'name'=>$_POST['signup_username'],
@@ -192,7 +192,7 @@ class Wplms_Activecampaign_Init{
 
 	function add_student_to_subscribe_list($order_id){
 
-		if(empty($this->settings['activecampaign_api_key']) || empty($this->settings['enable_woo_subscription']))
+		if(empty($this->settings['activecampaign_api_key'] && $this->settings['activecampaign_api_url']) || empty($this->settings['enable_woo_subscription']))
 			return;
 
 		$check = get_post_meta($order_id, '_subscribe_wplms_activecampaign',true);
@@ -200,7 +200,7 @@ class Wplms_Activecampaign_Init{
 			$order = new WC_Order( $order_id );
 			$user = $order->get_user();
 		    if ( !empty($user)){ 
-		        $gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		        $gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		        $args = apply_filters('wplms_activecampaign_list_filters',array(
 					'name'=>$_POST['signup_username'],
 					'campaign'=>array('campaignId'=>$this->settings['enable_registration']),
@@ -215,7 +215,7 @@ class Wplms_Activecampaign_Init{
 		if ( !isset($_POST['security']) || !wp_verify_nonce($_POST['security'],'wplms_activecampaign_settings') ){
 		     echo '<div class="error notice is-dismissible"><p>'.__('Security check Failed. Contact Administrator.','wplms-activecampaign').'</p></div>';
 		}
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		$emails = $gr->get_all_emails_from_list($_POST['list']);
 		print_r(json_encode($emails));
 		die();
@@ -275,7 +275,7 @@ class Wplms_Activecampaign_Init{
 
 	function sync_lists_put_check($all_emails,$element,$list,$paged=0){
 		
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		
 		global $wpdb;
 		switch($element){
@@ -297,7 +297,7 @@ class Wplms_Activecampaign_Init{
 				}
 				$tobe_rejected_mails =  array_diff($all_emails, $all_user_mails);
 				$tobe_added_mails =  array_diff($all_user_mails,$all_emails);
-				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 				if(!empty($tobe_rejected_mails)){
 					foreach($tobe_rejected_mails as $email){
 						$contactID=array_search($email,$all_emails);
@@ -328,7 +328,7 @@ class Wplms_Activecampaign_Init{
 				}
 				$tobe_rejected_mails =  array_diff($all_emails, $all_user_mails);
 				$tobe_added_mails =  array_diff($all_user_mails,$all_emails);
-				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 				if(!empty($tobe_rejected_mails)){
 					foreach($tobe_rejected_mails as $email){
 						$contactID=array_search($email,$all_emails);
@@ -432,7 +432,7 @@ class Wplms_Activecampaign_Init{
 		if($new_status != 'publish')
 			return;
 
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		$list_exists = get_post_meta($post->ID,'vibe_wplms_activecampaign_list',true);
 		if($list_exists)
 			return;
@@ -470,7 +470,7 @@ class Wplms_Activecampaign_Init{
 		if ( !isset($_POST['security']) || !wp_verify_nonce($_POST['security'],'wplms_activecampaign_settings') ){
 		     echo '<div class="error notice is-dismissible"><p>'.__('Security check Failed. Contact Administrator.','wplms-activecampaign').'</p></div>';
 		}
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		if(empty($this->lists)){
 			$this->get_lists();
 		}
@@ -539,7 +539,7 @@ class Wplms_Activecampaign_Init{
 		     echo '<div class="error notice is-dismissible"><p>'.__('Security check Failed. Contact Administrator.','wplms-activecampaign').'</p></div>';
 		}
 		
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 	
 		$data = json_decode(stripslashes($_POST['data']));	
 		if(!empty($data)){
@@ -555,7 +555,7 @@ class Wplms_Activecampaign_Init{
 
 	function course_specific_lists($list_ids){
 		
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		if(!empty($list_ids)){
 			foreach($list_ids as $list_id => $list_name){
 				if(!empty($list_id)){
@@ -728,7 +728,7 @@ class Wplms_Activecampaign_Init{
 	}
 
 	function add_to_list($course_id,$user_id){
-		if(empty($this->settings['activecampaign_api_key']))
+		if(empty($this->settings['activecampaign_api_key']) && isset($this->settings['activecampaign_api_url']))
 			return;
 
 		if(!isset($this->settings['auto_course_list_subscribe']))
@@ -738,7 +738,7 @@ class Wplms_Activecampaign_Init{
 		if(empty($list_id) && $list_id == 'disable')
 			return;
 
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		$user = get_user_by('ID',$user_id);
 
 		$return = $gr->add_contact(array(
@@ -752,7 +752,7 @@ class Wplms_Activecampaign_Init{
 
 	function remove_from_list($course_id,$user_id){
 
-		if(empty($this->settings['activecampaign_api_key']))
+		if(empty($this->settings['activecampaign_api_key']) && isset($this->settings['activecampaign_api_url']))
 			return;
 
 		if(!isset($this->settings['auto_course_list_subscribe']))
@@ -762,7 +762,7 @@ class Wplms_Activecampaign_Init{
 		if(empty($list_id))
 			return;
 
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		$contact_ids = $gr->get_all_emails_from_list($list_id);
 
 		$contacts=[];
@@ -780,14 +780,14 @@ class Wplms_Activecampaign_Init{
 	}
 
 	function change_status($course_id,$marks,$user_id){
-		if(empty($this->settings['activecampaign_api_key']))
+		if(empty($this->settings['activecampaign_api_key'] && $this->settings['activecampaign_api_url']))
 			return;
 
 		$list_id = get_post_meta($course_id,'vibe_wplms_activecampaign_list',true);
 		if(empty($list_id))
 			return;
 		
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		$user = get_user_by('ID',$user_id);
 		$return = $gr->add_contact(array(
 			'name'=>$user->display_name,
@@ -813,7 +813,7 @@ class Wplms_Activecampaign_Init{
 			'all_instructors_list'
 		);
 		
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		foreach($list_types as $setting){
 			if(!empty($this->settings[$setting])){ 
 
@@ -923,7 +923,7 @@ class Wplms_Activecampaign_Init{
 
 		foreach ($settings as $setting) {
 			if( $setting->id == 'subscribe_activecampaign_list' ){
-				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 				$list_id = get_post_meta($course_id,'vibe_wplms_activecampaign_list',true);
 				$user = get_user_by('ID',$user_id);
 				$args = $gr->add_contact(array(
@@ -952,8 +952,8 @@ class Wplms_Activecampaign_Init{
 		if(!isset($this->settings['enable_registration']))
 			return;
 
-            if(isset($this->settings) && isset($this->settings['activecampaign_api_key']) && !empty($this->settings['enable_registration'])){
-				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
+            if(isset($this->settings) && isset($this->settings['activecampaign_api_key']) && isset($this->settings['activecampaign_api_url'])&& !empty($this->settings['enable_registration'])){
+				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 				$user_meta=get_userdata($user_id);
 				$user_role=$user_meta->roles;
 				if($user_role != 'instructor'){
