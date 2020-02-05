@@ -66,6 +66,12 @@ class Wplms_Activecampaign_Admin{
 				'desc' => sprintf(__( 'How to get Activecampaign API Key %s Tutorial %s', 'wplms-activecampaign' ),'<a href="http://kb.activecampaign.com/integrations/api-integrations/about-api-keys" target="_blank">','</a>'),
 			),
 			array(
+				'label' => __( 'ActiveCampaign URL', 'wplms-activecampaign' ),
+				'name' => 'activecampaign_api_url',
+				'type' => 'text',
+				'desc' => __( 'Enter the ActiveCampaign URL here.', 'wplms-activecampaign' ),
+			),
+			array(
 				'label' => __( 'All Users List, also adds enable Subscribe option in Registration ', 'wplms-activecampaign' ),
 				'name' => 'enable_registration',
 				'type' => 'activecampaign_lists',
@@ -132,7 +138,7 @@ class Wplms_Activecampaign_Admin{
 
 		$this->generate_form($settings);
 		if(isset($_GET['batch'])){
-			$gr = new Wplms_Activecampaign($this->init->settings['activecampaign_api_key']);
+			$gr = new Wplms_Activecampaign($this->init->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 			
 		}
 		
