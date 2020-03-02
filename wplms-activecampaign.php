@@ -6,7 +6,7 @@ Description: This Plugin Interacates with the Active Campaign.
 Version: 1.0
 Author: Mr.Vibe
 Author URI: http://www.vibethemes.com/
-Text Domain: wplms-ac
+Text Domain: wplms-activecampaign
 Domain Path: /languages/
 Copyright 2016 VibeThemes  (email: vibethemes@gmail.com) 
 */
@@ -24,16 +24,16 @@ include_once 'includes/class.init.php';
 
 add_action('plugins_loaded','wplms_activecampaign_translations');
 function wplms_activecampaign_translations(){
-    $locale = apply_filters("plugin_locale", get_locale(), 'wplms-ac');
+    $locale = apply_filters("plugin_locale", get_locale(), 'wplms-activecampaign');
     $lang_dir = dirname( __FILE__ ) . '/languages/';
-    $mofile        = sprintf( '%1$s-%2$s.mo', 'wplms-ac', $locale );
+    $mofile        = sprintf( '%1$s-%2$s.mo', 'wplms-activecampaign', $locale );
     $mofile_local  = $lang_dir . $mofile;
     $mofile_global = WP_LANG_DIR . '/plugins/' . $mofile;
 
     if ( file_exists( $mofile_global ) ) {
-        load_textdomain( 'wplms-ac', $mofile_global );
+        load_textdomain( 'wplms-activecampaign', $mofile_global );
     } else {
-        load_textdomain( 'wplms-ac', $mofile_local );
+        load_textdomain( 'wplms-activecampaign', $mofile_local );
     }  
 }
 
