@@ -51,34 +51,43 @@ class Wplms_Activecampaign{
 		$body = json_decode( wp_remote_retrieve_body( $response ));
 		return $body;
 	}
-
-	function activecampaign_list_function($user_args,$list_id){	
-		//ob_start();
-		$args = $this->args; 
-
-		$args['body'] = json_encode($user_args);
-
-		$response = wp_remote_post(  $this->apiurl . 'lists/' . $list_id . '/contacts/' . md5(strtolower($email)), $args );	
-
-		$body = json_decode( $response['body'] );
-		if ( $response['response']['code'] == 200) {
-			return 0;
-		} else {
-			return $response['response']['code'] . $body->title .' : '. $body->detail;
+	function get_all_contacts(){
+		$response = wp_remote_get($this->apiurl.'contacts',$this->args);
+		$body = json_decode(wp_remote_retrieve_body($response));
+		foreach ($body->contacts as $key => $member) {
+			$contacts[] = array('email'=>$member->email,'Id'=>$member->id);
 		}
+		return $contacts;
 	}
 	
+	function create_list($list_args){
+		$args = $this->args;
+		$args['method'] = 'POST';
+		/*{
+			"list": {
+				"name": "Name of List",
+				"stringid": "Name-of-list",
+				"sender_url": "http://activecampaign.com",
+				"sender_reminder": "You are receiving this email as you are on our site."
+			}
+		}*/
+		if(empty($list_args['list']['name']))
+			return;
+
+		$args['body'] = json_encode($list_args);
+		$response = wp_remote_post(  $this->apiurl.'lists', $args );
+		$body = json_decode( wp_remote_retrieve_body( $response ) );
+		if(!empty($body))
+			return $body->list->id;
+	}
 	function get_all_emails_from_list($list_id){
 
-		$response = wp_remote_get( $this->apiurl.'campaigns/'.$list_id.'/contacts/', $this->args );
+		$response = wp_remote_get( $this->apiurl.'contacts/?listid='.$list_id, $this->args );
 		$body = json_decode( wp_remote_retrieve_body( $response ),true );
 		$emails = array();
-		// print_r('body start'); 
-		// print_r($body);
-		// print_r('body ends');
 		if ( wp_remote_retrieve_response_code( $response ) == 200 ) {
-			foreach ($body as $key => $member) {
-				$emails[] = array('email'=>$member['email'],'contactId'=>$member['contactId'],'info'=>array('email'=>$member['email'],'name'=>$member['name'],'campaign'=>array('campaignId'=>$list_id)));
+			foreach ($body['contacts'] as $key => $member) {
+				$emails[] = array('email'=>$member['email'],'Id'=>$member['id']);
 			}
 			return $emails;
 		}else {
@@ -86,42 +95,44 @@ class Wplms_Activecampaign{
 		}
 	}
 
-	
-	function create_list($list_args){
+	function add_contact($contact_args){
+		
 		$args = $this->args;
 		$args['method'] = 'POST';
-		$list_args['name']=sanitize_html_class(get_bloginfo('name')).'-'.$list_args['name'];
-		$args['body'] = json_encode($list_args);
-		$response = wp_remote_post(  $this->apiurl.'campaigns', $args );
+		/*
+		{
+			"contact": {
+				"email": "johndoe@example.com",
+				"firstName": "John"
+			}
+		}*/
+		$contacts = array();
+		$args['body'] = json_encode($contact_args);
+		$response = wp_remote_post(  $this->apiurl.'contacts',$args );
 		$body = json_decode( wp_remote_retrieve_body( $response ) );
-		if(!empty($body)){
-			return $body->campaignId;
-		}
+	
+		print_r('add contacts');
+		print_r($body);
+		print_r($body->contact->id);
+
+		return $body->contact->id;
 	}
 
-	function add_contact($contact_args){
-
-		if(!in_array($contact_args['email'],array_keys($this->add_contact)) || !in_array($contact_args['campaign']['campaignId'], $this->add_contact[$contact_args['email']])){
-			$this->add_contact[$contact_args['email']][]=$contact_args['campaign']['campaignId'];
-		
-			$args = $this->args;
-			$args['method'] = 'POST';
-			/*
-			{
-			  "name": "John Doe",
-			  "campaign": {
-			    "campaignId": "yhLAG"
-			  },
-			  "email": "ripul@99fusion.com"
-			}*/
-			$args['body'] = json_encode($contact_args);
-			$response = wp_remote_post(  $this->apiurl.'contacts',$args );
-			$body = json_decode( wp_remote_retrieve_body( $response ) );
-			if(empty($body)){
-				return true;
-			}
-		}
-		return true;
+	function update_contact($contact_args){
+		$args = $this->args;
+		$args['method'] = 'POST';
+		/*{
+		    "contactList": {
+		        "list": 2,
+		        "contact": 1,
+		        "status": 1
+		    }
+		}*/
+		$args['body'] = json_encode($contact_args);
+		$response = wp_remote_post($this->apiurl.'contactLists',$args);
+		$body = json_decode(wp_remote_retrieve_body($response));
+		print_r('update contacts');
+		print_r($body);
 	}
 
 	function remove_contact($contact_id){
@@ -130,12 +141,12 @@ class Wplms_Activecampaign{
 		$args['method'] = 'DELETE';
 		/*
 		{
-		  "contactId": "B3Fjk"
+		  "id": "4"
 		}*/
 		$response = wp_remote_post(  $this->apiurl.'contacts/'.$contact_id, $args );
-
 		
 	}
+
 	function debug($streamopt){
 		$myFile = "activecampaign_debug.txt";
         if (file_exists($myFile)) {
