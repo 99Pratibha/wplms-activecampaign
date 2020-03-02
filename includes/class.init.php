@@ -66,9 +66,6 @@ class Wplms_Activecampaign_Init{
 		add_action('wp_ajax_sync_lists_put',array($this,'sync_lists_put'));
 		add_action('wp_ajax_get_create_course_lists',array($this,'get_create_course_lists'));
 		add_action('wp_ajax_course_lists_put',array($this,'course_lists_put'));
-		/* Subscribe Widget */
-		add_action('wp_ajax_wplms_gr_subscribe_to_list',array($this,'wplms_gr_subscribe_to_list'));
-		add_action('wp_ajax_nopriv_wplms_gr_subscribe_to_list',array($this,'wplms_gr_subscribe_to_list'));
 		//Add activecampaign in custom registration form
 		add_filter('wplms_registration_form_settings',array($this,'wplms_add_activecampaign_list_in_custom_registration_form'));
 		add_action('wplms_before_registration_form',array($this,'wplms_add_activecampaign_checkbox_on_registration'));
@@ -78,7 +75,7 @@ class Wplms_Activecampaign_Init{
 
 	function get_settings(){
 		if(empty($this->settings)){
-			$this->settings = get_option(WPLMS_GETRESPONSE_OPTION);
+			$this->settings = get_option(WPLMS_ACTIVECAMPAIGN_OPTION);
 		}
 	}
 
@@ -104,11 +101,11 @@ class Wplms_Activecampaign_Init{
 			return $this->lists;
 
 		if(isset($this->settings) && isset($this->settings['activecampaign_api_key']) && isset($this->settings['activecampaign_api_url'])){
-			$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
-			$lists = $gr->get_lists(); 
-			if(!empty($lists)){
-				foreach($lists as $list){
-					$this->lists[$list->campaignId]=$list->name;
+			$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+			$lists = $ac->get_lists();
+			if(!empty($lists->lists)){
+				foreach($lists->lists as $list){
+					$this->lists[$list->id]=$list->stringid;
 				}
 			}
 		}
@@ -162,15 +159,23 @@ class Wplms_Activecampaign_Init{
             
             if(isset($this->settings) && isset($this->settings['activecampaign_api_key']) && isset($this->settings['activecampaign_api_url']) && !empty($_POST['signup_email']) && !empty($this->settings['enable_registration'])){
 
-				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+				$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 
 				$args = apply_filters('wplms_activecampaign_list_filters',array(
-					'name'=>$_POST['signup_username'],
-					'campaign'=>array('campaignId'=>$this->settings['enable_registration']),
-					'email'=>$_POST['signup_email']),
+						'email'=>$user->user_email,
+						'name'=>$user->display_name),
 				$_POST);
-				
-				$return = $gr->add_contact($args);
+				if(is_numeric($args)){
+					update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$args);
+				}
+				$return = $ac->add_contact($args);
+				$update_contact = $ac->update_contact(array(
+					'contactList'=>array(
+						'list'=>$list,
+						'contact'=>$return,
+						'status'=>1
+					)
+				));
 				if(empty($return)){
 					add_filter('the_content',function($content){ $content .='<div class="message success">'._x('You\'re subscribed to our newsletter','Success message on mail subscription','wplms-activecampaign').'</div>'; return $return;});
 				}else{
@@ -200,13 +205,22 @@ class Wplms_Activecampaign_Init{
 			$order = new WC_Order( $order_id );
 			$user = $order->get_user();
 		    if ( !empty($user)){ 
-		        $gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+		        $ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		        $args = apply_filters('wplms_activecampaign_list_filters',array(
-					'name'=>$_POST['signup_username'],
-					'campaign'=>array('campaignId'=>$this->settings['enable_registration']),
-					'email'=>$_POST['signup_email']),
+						'email'=>$user->user_email,
+						'name'=>$user->display_name),
 				$_POST);
-				$gr->add_contact($args);
+				if(is_numeric($args)){
+					update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$args);
+				}
+				$id = $ac->add_contact($args);
+				$update_contact = $ac->update_contact(array(
+					'contactList'=>array(
+						'list'=>$list,
+						'contact'=>$id,
+						'status'=>1
+					)
+				));
 		    }
 		}
 	}
@@ -215,8 +229,8 @@ class Wplms_Activecampaign_Init{
 		if ( !isset($_POST['security']) || !wp_verify_nonce($_POST['security'],'wplms_activecampaign_settings') ){
 		     echo '<div class="error notice is-dismissible"><p>'.__('Security check Failed. Contact Administrator.','wplms-activecampaign').'</p></div>';
 		}
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
-		$emails = $gr->get_all_emails_from_list($_POST['list']);
+		$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+		$emails = $ac->get_all_emails_from_list($_POST['list']);
 		print_r(json_encode($emails));
 		die();
 	}
@@ -226,13 +240,13 @@ class Wplms_Activecampaign_Init{
 		     die();
 		}
 		$emails = json_decode(stripcslashes($_POST['emails']));
-
-		$all_emails = array();
+		
+		$all_ac_emails = array();
 	
 		if(!empty($emails)){
 			
 			foreach ($emails as $email) {
-				$all_emails[$email->contactId]=$email->email;
+				$all_ac_emails[$email->Id]=$email->email;
 			
 			}
 		}
@@ -269,85 +283,134 @@ class Wplms_Activecampaign_Init{
 			$paged = 0;
 		}
 
-		$this->sync_lists_put_check($all_emails,$_POST['element'],$_POST['list'],$paged);
+		$this->sync_lists_put_check($all_ac_emails,$_POST['element'],$_POST['list'],$paged);
 		die();
 	}
 
-	function sync_lists_put_check($all_emails,$element,$list,$paged=0){
+	function sync_lists_put_check($all_ac_emails,$element,$list,$paged=0){
 		
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+		$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		
 		global $wpdb;
 		switch($element){
 			case 'enable_registration':
-				$all_users = $wpdb->get_results("SELECT user_email,display_name 
+				$all_users = $wpdb->get_results("SELECT ID,user_email,display_name 
 					FROM {$wpdb->users} WHERE user_status = 0 ");
+				$all_ac_ids = $wpdb->get_results("SELECT user_id, meta_value FROM {$wpdb->usermeta} WHERE meta_key = 'vibe_wplms_activecampaign_contact_id'");
+				
+				$all_ac_accounts = array();
+				if(!empty($all_ac_ids)){
+					foreach($all_ac_ids as $ac_id){
+						$all_ac_accounts[$ac_id->user_id]=$ac_id->meta_value;
+					}
+				}
 				$all_user_mails = array();
-				$merge_fields = array();
 				if(!empty($all_users)){
 					foreach($all_users as $user){
 						$all_user_mails[] = $user->user_email;
-						$merge_fields[$user->user_email] = array(
-							'name'=>$user->display_name,
-							'campaign'=>array(
-								'campaignId'=>$list),
-							'email'=>$user->user_email
-						);
-					}
-				}
-				$tobe_rejected_mails =  array_diff($all_emails, $all_user_mails);
-				$tobe_added_mails =  array_diff($all_user_mails,$all_emails);
-				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
-				if(!empty($tobe_rejected_mails)){
-					foreach($tobe_rejected_mails as $email){
-						$contactID=array_search($email,$all_emails);
-						$gr->remove_contact($contactID);
-					}
-				}
-				if(!empty($tobe_added_mails)){
-					foreach($tobe_added_mails as $email){
-						$gr->add_contact($merge_fields[$email]);
-					}
+						if(!in_array($user->ID,array_keys($all_ac_accounts))){
+							$id = $ac->add_contact(array(
+								'contact'=>array(
+									'email'=>$user->user_email,
+									'firstName'=>$user->display_name
+								)
+							));
+							if(is_numeric($id)){
+								update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$id);
+								$all_ac_accounts[$user->ID]=$id;
+							}
+						}
+
+						$update_contact = $ac->update_contact(array(
+							'contactList'=>array(
+								'list'=>$list,
+								'contact'=>$all_ac_accounts[$user->ID],
+								'status'=>1
+							)
+						));
+						
+						}
+						$tobe_rejected_mails =  array_diff($all_ac_emails, $all_user_mails);
+						
+						if(!empty($tobe_rejected_mails)){
+						foreach($tobe_rejected_mails as $id => $email){
+							$update_contact = $ac->update_contact(array(
+								'contactList'=>array(
+									'list'=>$list,
+									'contact'=>$id,
+									'status'=>0
+								)
+							));
+						}
+					 }
 				}
 			break;
 			case 'enable_woo_subscription':
 	            
-				$all_users = $wpdb->get_results("SELECT  m.meta_value as email,p.ID as order_id FROM {$wpdb->postmeta} as m LEFT JOIN {$wpdb->posts} as p ON m.post_id = p.ID WHERE p.post_type = 'shop_order' AND p.post_status = 'wc-completed' AND m.meta_key = '_billing_email' GROUP BY email LIMIT $paged,$this->loop_max");
-				$all_user_mails = $merge_fields = array();
-				if(!empty($all_users)){
-					foreach($all_users as $user){
-						$name   = get_post_meta( $user->order_id, '_billing_first_name',true);
-	                	$user_email   = get_post_meta( $user->order_id, '_billing_email',true);
-	                	$all_user_mails[] = $user_email;
-						$merge_fields[$user_email] = array(
-							'name'=>$name,
-							'campaign'=>array('campaignId'=>$list),
-							'email'=>$user_email
-						);
+				// $all_users = $wpdb->get_results("SELECT m.meta_value as email,p.ID as order_id FROM {$wpdb->postmeta} as m LEFT JOIN {$wpdb->posts} as p ON m.post_id = p.ID WHERE p.post_type = 'shop_order' AND p.post_status = 'wc-completed' AND m.meta_key = '_billing_email' GROUP BY email LIMIT $paged,$this->loop_max");
+
+				$all_users = $wpdb->get_results("SELECT DISTINCT u.ID as ID, um.user_id as User_id,u.display_name as name, p.meta_value as email FROM {$wpdb->users} as u JOIN {$wpdb->postmeta} as p ON p.meta_value = u.user_email INNER JOIN {$wpdb->usermeta} as um ON u.ID = um.user_id ");
+
+				$all_ac_ids = $wpdb->get_results("SELECT user_id, meta_value FROM {$wpdb->usermeta} WHERE meta_key = 'vibe_wplms_activecampaign_contact_id'");
+
+				$all_ac_accounts = array();
+				if(!empty($all_ac_ids)){
+					print_r('#3');
+					foreach($all_ac_ids as $ac_id){
+						$all_ac_accounts[$ac_id->user_id]=$ac_id->meta_value;
 					}
 				}
-				$tobe_rejected_mails =  array_diff($all_emails, $all_user_mails);
-				$tobe_added_mails =  array_diff($all_user_mails,$all_emails);
-				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
-				if(!empty($tobe_rejected_mails)){
-					foreach($tobe_rejected_mails as $email){
-						$contactID=array_search($email,$all_emails);
-						$gr->remove_contact($contactID);
+				$all_user_mails = array();
+
+				$add_to_list_ac_emails = array();
+
+				if(!empty($all_users)){
+					foreach($all_users as $user){
+						if(!in_array($user->ID,array_keys($all_ac_accounts))){
+							print_r('#4');
+							$id = $ac->add_contact(array(
+								'contact'=>array(
+									'email'=>$user->email,
+									'firstName'=>$user->name
+								)
+							));
+							if(is_numeric($id)){
+								print_r('#5');
+								update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$id);
+								$all_ac_accounts[$user->ID]=$id;
+							}
+						}
+
+						$update_contact = $ac->update_contact(array(
+							'contactList'=>array(
+								'list'=>$list,
+								'contact'=>$all_ac_accounts[$user->ID],
+								'status'=>1
+							)
+						));
+					}
+					$tobe_rejected_mails =  array_diff($all_ac_emails, $all_user_mails);
+						
+					if(!empty($tobe_rejected_mails)){
+						foreach($tobe_rejected_mails as $id => $email){
+							$update_contact = $ac->update_contact(array(
+								'contactList'=>array(
+									'list'=>$list,
+									'contact'=>$id,
+									'status'=>0
+								)
+							));
+						}
 					}
 				}
 
-				if(!empty($tobe_added_mails)){
-					foreach($tobe_added_mails as $email){
-						$gr->add_contact($merge_fields[$email]);
-					}
-				}
-				
 			break;
 			case 'all_course_students':
 				
 				$time = time();
 				
 				$all_users = $wpdb->get_results("SELECT u.user_email as email,
+					u.ID as ID,
 					u.display_name as name,
 					p.post_title as course_name
 					FROM {$wpdb->users} as u 
@@ -361,63 +424,110 @@ class Wplms_Activecampaign_Init{
 					AND m2.meta_key LIKE '%course_status%'
 					AND p.post_type = 'course'
 					AND p.post_status = 'publish'
-					GROUP BY email, course_name
+					GROUP BY email,course_name
 					LIMIT $paged,$this->loop_max");
+				$all_ac_ids = $wpdb->get_results("SELECT user_id, meta_value FROM {$wpdb->usermeta} WHERE meta_key = 'vibe_wplms_activecampaign_contact_id'");
+				$all_ac_accounts = array();
+				if(!empty($all_ac_ids)){
+					foreach($all_ac_ids as $ac_id){
+						$all_ac_accounts[$ac_id->user_id]=$ac_id->meta_value;
+					}
+				}
 				$all_user_mails = array();
-				$merge_fields = array();
+
+				$add_to_list_ac_emails = array();
+
 				if(!empty($all_users)){
 					foreach($all_users as $user){
-						$all_user_mails[] = $user->email;
-						$merge_fields[$user->email] = array(
-								'name'=>$user->name,
-								'campaign'=>array('campaignId'=>$list),
-								'email'=>$user->email
-							);
-					}
-				}
-				$tobe_rejected_mails =  array_diff($all_emails, $all_user_mails);
-				$tobe_added_mails =  array_diff($all_user_mails,$all_emails);
-				if(!empty($tobe_rejected_mails)){
-					foreach($tobe_rejected_mails as $email){
-						$contactID=array_search($email,$all_emails);
-						$gr->remove_contact($contactID);
-					}
-				}
+						$all_user_mails[] = $user->user_email;
+						print_r('#1');
+						if(!in_array($user->ID,array_keys($all_ac_accounts))){
+							print_r('#2');
+							$id = $ac->add_contact(array(
+								'contact'=>array(
+									'email'=>$user->email,
+									'firstName'=>$user->name
+								)
+							));
+							if(is_numeric($id)){
+								update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$id);
+								$all_ac_accounts[$user->ID]=$id;
+							}
+						}
 
-				if(!empty($tobe_added_mails)){
-					foreach($tobe_added_mails as $email){
-						$gr->add_contact($merge_fields[$email]);
+						$update_contact = $ac->update_contact(array(
+							'contactList'=>array(
+								'list'=>$list,
+								'contact'=>$all_ac_accounts[$user->ID],
+								'status'=>1
+							)
+						));
+					}
+				}
+				$tobe_rejected_mails =  array_diff($all_ac_emails, $all_user_mails);
+				if(!empty($tobe_rejected_mails)){
+					foreach($tobe_rejected_mails as $id => $email){
+						$update_contact = $ac->update_contact(array(
+							'contactList'=>array(
+								'list'=>$list,
+								'contact'=>$id,
+								'status'=>0
+							)
+						));
 					}
 				}
 			break;
 			case 'all_instructors_list':
 				$all_instructors = get_users( 'role=instructor' );
-				$all_instructor_mails = array();
-				$merge_fields = array();
-				if(!empty($all_instructors)){
-					foreach($all_instructors as $instructor){
-						$all_instructor_mails[] = $instructor->user_email;
-						$merge_fields[$instructor->user_email] = array(
-							'name'=>$instructor->display_name,
-							'campaign'=>array('campaignId'=>$list),
-							'email'=>$instructor->user_email
-						);
-					}
-				}
-				$tobe_rejected_mails =  array_diff($all_emails, $all_instructor_mails);
-				$tobe_added_mails =  array_diff($all_instructor_mails,$all_emails);
-				if(!empty($tobe_rejected_mails)){
-					foreach($tobe_rejected_mails as $email){
-						$contactID=array_search($email,$all_emails);
-						$gr->remove_contact($contactId);
-					}
-				}
 
-				if(!empty($tobe_added_mails)){
-					foreach($tobe_added_mails as $email){
-					$gr->add_contact($merge_fields[$email]);
+				$all_ac_ids = $wpdb->get_results("SELECT user_id, meta_value FROM {$wpdb->usermeta} WHERE meta_key = 'vibe_wplms_activecampaign_contact_id'");
+				
+				$all_ac_accounts = array();
+				if(!empty($all_ac_ids)){
+					foreach($all_ac_ids as $ac_id){
+						$all_ac_accounts[$ac_id->user_id]=$ac_id->meta_value;
 					}
-					
+				}
+				$all_instructor_mails = array();
+
+				$add_to_list_ac_emails = array();
+
+				if(!empty($all_instructors)){
+					foreach($all_instructors as $user){
+						$all_instructor_mails[] = $user->user_email;
+						if(!in_array($user->ID,array_keys($all_ac_accounts))){
+							$id = $ac->add_contact(array(
+								'contact'=>array(
+									'email'=>$user->user_email,
+									'firstName'=>$user->display_name
+								)
+							));
+							if(is_numeric($id)){
+								update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$id);
+								$all_ac_accounts[$user->ID]=$id;
+							}
+						}
+
+						$update_contact = $ac->update_contact(array(
+							'contactList'=>array(
+								'list'=>$list,
+								'contact'=>$all_ac_accounts[$user->ID],
+								'status'=>1
+							)
+						));
+					}
+					$tobe_rejected_mails =  array_diff($all_ac_emails, $all_instructor_mails);
+					if(!empty($tobe_rejected_mails)){
+						foreach($tobe_rejected_mails as $id => $email){
+							$update_contact = $ac->update_contact(array(
+								'contactList'=>array(
+									'list'=>$list,
+									'contact'=>$id,
+									'status'=>0
+								)
+							));
+						}
+					}
 				}
 			break;
 		}
@@ -432,7 +542,7 @@ class Wplms_Activecampaign_Init{
 		if($new_status != 'publish')
 			return;
 
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+		$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		$list_exists = get_post_meta($post->ID,'vibe_wplms_activecampaign_list',true);
 		if($list_exists)
 			return;
@@ -442,15 +552,14 @@ class Wplms_Activecampaign_Init{
 		if(!empty($courses)){
 			foreach($courses as $course){
 				$list_args = array(
-					"name"=>$course->post_name,
-						"languageCode"=> $this->settings['language_code'],
-						"optinTypes"=>array( "api"=> "single"),
-					"profile"=>array(
-						"description"=>$course->post_excerpt,
-					    "title"=> $course->post_title
+					"list" => array(
+						"name"=>$course->post_name,
+						"stringid"=>$course->post_name,
+						"sender_reminder"=> $this->settings['sender_reminder'],
+						"sender_url"=>"https://singhpratibha1432.api-us1.com"
 					)
 				);
-				$id = $gr->create_list($list_args);
+				$id = $ac->create_list($list_args);
 				if($id){
 						$this->lists[$id] = $course->post_name;
 						$list_ids[]=array('list_id'=>$id,'list_name'=>$course->post_name);
@@ -470,7 +579,7 @@ class Wplms_Activecampaign_Init{
 		if ( !isset($_POST['security']) || !wp_verify_nonce($_POST['security'],'wplms_activecampaign_settings') ){
 		     echo '<div class="error notice is-dismissible"><p>'.__('Security check Failed. Contact Administrator.','wplms-activecampaign').'</p></div>';
 		}
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+		$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		if(empty($this->lists)){
 			$this->get_lists();
 		}
@@ -478,6 +587,7 @@ class Wplms_Activecampaign_Init{
 		global $wpdb;
 		//Existing Course List ids
 		$course_lists = $wpdb->get_results("SELECT meta_value,post_id FROM {$wpdb->postmeta} WHERE meta_key = 'vibe_wplms_activecampaign_list'");
+		
 		$course_list_ids = $exclude_courses = array();
 		$ex_list_ids = array_keys($this->lists); 
 		if(!empty($course_lists)){
@@ -487,7 +597,7 @@ class Wplms_Activecampaign_Init{
 				}
 				else{
 					if(in_array($list->meta_value,$ex_list_ids)){ // Check if list exists
-						$course_list_ids[$list->meta_value] = $list->post_id;	
+						$course_list_ids[$list->meta_value] = $list->post_id;
 					}
 				}
 			}
@@ -501,31 +611,29 @@ class Wplms_Activecampaign_Init{
 		$list_ids = array();
 		if(!empty($courses)){
 			foreach($courses as $course){
-			$course_name=sanitize_html_class(get_bloginfo('name')).'-'.$course->post_name;
 				if(in_array($course->ID,$course_list_ids)){
 					$id = array_search($course->ID,$course_list_ids);
-					$list_ids[]=array('list_id'=>$id,'list_name'=>$course_name);
+					$list_ids[]=array('list_id'=>$id,'list_name'=>$course->post_name);
 				}else{
-					if(!in_array($course_name,$this->lists)){
+					if(!in_array($course->post_name,$this->lists)){
 						$list_args = array(
-							"name"=>$course_name,
-  							"languageCode"=> $this->settings['language_code'],
-  							"optinTypes"=>array( "api"=> "single"),
-							"profile"=>array(
-								"description"=>$course->post_excerpt,
-							    "title"=> $course->post_title
-							)
+							"list" => array(
+								"name"=>$course->post_name,
+								"stringid"=>$course->post_name,
+	  							"sender_reminder"=> $this->settings['sender_reminder'],
+	  							"sender_url"=>"https://singhpratibha1432.api-us1.com"
+	  						)
 						);
-						$id = $gr->create_list($list_args);
+						$id = $ac->create_list($list_args);
 						if($id){
-							$this->lists[$id] = $course_name;
-							$list_ids[]=array('list_id'=>$id,'list_name'=>$course_name);
+							$this->lists[$id] = $course->post_name;
+							$list_ids[]=array('list_id'=>$id,'list_name'=>$course->post_name);
 							update_post_meta($course->ID,'vibe_wplms_activecampaign_list',$id);
 						}
 					}else{
-						$id = array_search($course_name,$this->lists);
-						$list_ids[]=array('list_id'=>$id,'list_name'=>$course_name);
-
+						$id = array_search($course->post_name,$this->lists);
+						$list_ids[]=array('list_id'=>$id,'list_name'=>$course->post_name);
+						// update_post_meta($course->ID,'vibe_wplms_activecampaign_list',$id);
 					}
 				}
 			}
@@ -539,7 +647,7 @@ class Wplms_Activecampaign_Init{
 		     echo '<div class="error notice is-dismissible"><p>'.__('Security check Failed. Contact Administrator.','wplms-activecampaign').'</p></div>';
 		}
 		
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+		$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 	
 		$data = json_decode(stripslashes($_POST['data']));	
 		if(!empty($data)){
@@ -555,7 +663,7 @@ class Wplms_Activecampaign_Init{
 
 	function course_specific_lists($list_ids){
 		
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+		$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		if(!empty($list_ids)){
 			foreach($list_ids as $list_id => $list_name){
 				if(!empty($list_id)){
@@ -568,6 +676,7 @@ class Wplms_Activecampaign_Init{
 							//get all emails from Course
 							$all_course_users = $wpdb->get_results("
 							SELECT 
+								u.ID as ID,
 								u.user_email as email,
 								u.display_name as name
 							FROM {$wpdb->users} as u 
@@ -575,129 +684,48 @@ class Wplms_Activecampaign_Init{
 							ON u.ID = m.user_id 
 							WHERE u.user_status = 0 
 							AND m.meta_key = $course_id",true);
-							//get all emails from list
-							$all_list_emails = $gr->get_all_emails_from_list($list_id);
-							$add_contacts = $remove_contacts = array();
-							if(!empty($all_course_users)){
-								foreach($all_course_users as $key=>$user){
-									$all_course_users[$user->email] = $user;
-									unset($all_course_users[$key]);
+
+							$all_ac_ids = $wpdb->get_results("SELECT user_id, meta_value FROM {$wpdb->usermeta} WHERE meta_key = 'vibe_wplms_activecampaign_contact_id'");
+				
+							$all_ac_accounts = array();
+							if(!empty($all_ac_ids)){
+								foreach($all_ac_ids as $ac_id){
+									$all_ac_accounts[$ac_id->user_id]=$ac_id->meta_value;
 								}
 							}
+							$all_user_mails = array();
 
-							if(!empty($all_list_emails)){
-								/*
-								new_list_members[$user->email][] = array(
-									'name'=>$user->name,
-									'course'=>$user->course_slug,
-									'campaign'=>array(
-										'campaignId'=>$list_id),
-									'email'=>$user->email
-								);*/
-								$course_emails = array();
-								if(!empty($all_course_users)){
-									$course_emails = array_keys($all_course_users);
-								}
+							$add_to_list_ac_emails = array();
 
-								foreach($all_list_emails as $k=>$member){
-									if(!in_array($member['email'],$course_emails)){
-										$remove_contacts[]=$member['contactId'];
-										
-									}
-								}
-							}
 							if(!empty($all_course_users)){
-								$list_emails = array();
-								if(!empty($all_list_emails)){
-									foreach($all_list_emails as $member){
-										$list_emails[]=$member['email'];
-									}
-								}
-								
 								foreach($all_course_users as $user){
-									if(!in_array($user->email,$list_emails)){
-										$add_contacts[$user->email] = array(
-											'name'=>$user->name,
-											'campaign'=>array(
-												'campaignId'=>$list_id),
-											'email'=>$user->email
-										);
+									if(!in_array($user->ID,array_keys($all_ac_accounts))){
+										$id = $ac->add_contact(array(
+											'contact'=>array(
+												'email'=>$user->email,
+												'firstName'=>$user->name
+											)
+										));
+										if(is_numeric($id)){
+											update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$id);
+											$all_ac_accounts[$user->ID]=$id;
+										}
 									}
-								}
-							}
-							
-							if(!empty($remove_contacts)){
-								foreach($remove_contacts as $key=>$contact_id){
-									$gr->remove_contact($contact_id);
-								}
-							}
-							
-							if(!empty($add_contacts)){
-								print_r($add_contacts);
-								foreach($add_contacts as $contact){
-									$gr->add_contact($contact);
+
+									$update_contact = $ac->update_contact(array(
+										'contactList'=>array(
+											'list'=>$list_id,
+											'contact'=>$all_ac_accounts[$user->ID],
+											'status'=>1
+										)
+									));
 								}
 							}
 							set_transient('activecampaign_lists_synced',$synced_lists,DAY_IN_SECONDS);	
 						}
-
-						
 					}			
 				}
 			}		 
-		}
-	}
-
-
-		
-	function wplms_gr_subscribe_to_list(){
-
-		if ( !isset($_POST['security']) || !wp_verify_nonce($_POST['security'],$_POST['list']) ){
-		    echo __('Security check Failed. Contact Administrator.','wplms-gr');
-		    die();
-		}
-		$this->get_settings();
-		if(empty($this->settings['activecampaign_api_key'])){
-			echo __('Activecampaign Key is missing in settings.','wplms-gr');
-			die();
-		}
-
-		$dummy = new Wplms_ActiveCampaign_Subscribe_Widget();
- 		if( isset($dummy->captcha_enabled) && $dummy->captcha_enabled == 1 ){
-			if(empty($this->settings['recaptcha_secret'])){
-				echo __('Missing Captcha field','wplms-gr');
-				die();
-	 		}else{
-	 			include_once 'recaptchalib.php';
-	 			$objRecaptcha = new ReCaptcha( $this->settings['recaptcha_secret']);
-				$response = $objRecaptcha->verifyResponse($_SERVER['REMOTE_ADDR'], $_POST['captcha']);
-				if(!isset($response->success) || 1 != $response->success){
-					echo __('Invalid Captcha field','wplms-gr');
-					die();
-				}
-	 		}
- 		}
-		//$list_id = get_post_meta($course_id,'vibe_wplms_activecampaign_list',true);
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key']);
-		//$user = get_user_by('ID',$user_id);
-
-		//valid email
-		if(is_email($_POST['email']));{
-			$args = apply_filters('wplms_activecampaign_list_filters',array(
-					'name'=>$_POST['name'],
-					'campaign'=>array(
-						'campaignId'=>$_POST['list']),
-					'email'=>$_POST['email']),
-				$_POST);
-
-			$response = $gr->add_contact($args);
-
-			if(empty($response)){
-				echo 1;
-			}else{
-				echo $response;
-			}
-			die();
 		}
 	}
 
@@ -738,14 +766,38 @@ class Wplms_Activecampaign_Init{
 		if(empty($list_id) && $list_id == 'disable')
 			return;
 
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+		$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		$user = get_user_by('ID',$user_id);
+		global $wpdb;
+		$all_ac_ids = $wpdb->get_results("SELECT user_id, meta_value FROM {$wpdb->usermeta} WHERE meta_key = 'vibe_wplms_activecampaign_contact_id'");
+		
+		$all_ac_accounts = array();
+		if(!empty($all_ac_ids)){
+			foreach($all_ac_ids as $ac_id){
+				$all_ac_accounts[$ac_id->user_id]=$ac_id->meta_value;
+			}
+		}
+		if(!in_array($user->ID, array_keys($all_ac_accounts)))
+		{
+			$id = $ac->add_contact(array(
+				'contact'=>array(
+					'email'=>$user->user_email,
+					'firstName'=>$user->display_name
+				)
+			));
+			if(is_numeric($id)){
+				update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$id);
+				$all_ac_accounts[$user->ID]=$id;
+			}
+		}
 
-		$return = $gr->add_contact(array(
-			'name'=>$user->display_name,
-			'campaign'=>array(
-				'campaignId'=>$list_id),
-			'email'=>$user->user_email));
+		$update_contact = $ac->update_contact(array(
+			'contactList'=>array(
+				'list'=>$list_id,
+				'contact'=>$all_ac_accounts[$user->ID],
+				'status'=>1
+			)
+		));
 
 		return;		
 	}
@@ -762,38 +814,19 @@ class Wplms_Activecampaign_Init{
 		if(empty($list_id))
 			return;
 
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
-		$contact_ids = $gr->get_all_emails_from_list($list_id);
-
-		$contacts=[];
-		if(!empty($contact_ids)){
-			foreach($contact_ids as $id=>$value){
-				$contacts[$value['contactId']]=$value['email'];
-			}
-		}
-		$user = get_user_by('ID',$user_id);
-		$contact_id = array_search($user->data->user_email,$contacts);
-		if(!empty($contact_id)){
-			$return = $gr->remove_contact($contact_id);
-		}
-		return;
-	}
-
-	function change_status($course_id,$marks,$user_id){
-		if(empty($this->settings['activecampaign_api_key'] && $this->settings['activecampaign_api_url']))
-			return;
-
-		$list_id = get_post_meta($course_id,'vibe_wplms_activecampaign_list',true);
-		if(empty($list_id))
-			return;
+		$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		$user = get_user_by('ID',$user_id);
-		$return = $gr->add_contact(array(
-			'name'=>$user->display_name,
-			'campaign'=>array(
-				'campaignId'=>$list_id),
-			'email'=>$user->user_email));
+		$ac_contact_id = get_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',true);
+		$update_contact = $ac->update_contact(array(
+			'contactList'=>array(
+				'list'=>$list_id,
+				'contact'=>$ac_contact_id,
+				'status'=>0
+			)
+		));
+
+		return;
 	}
 
 	function sync_lists(){
@@ -813,19 +846,19 @@ class Wplms_Activecampaign_Init{
 			'all_instructors_list'
 		);
 		
-		$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+		$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		foreach($list_types as $setting){
 			if(!empty($this->settings[$setting])){ 
 
-				$emails = $gr->get_all_emails_from_list($this->settings[$setting]);
+				$emails = $ac->get_all_emails_from_list($this->settings[$setting]);
 
-				$all_emails = array();
+				$all_ac_emails = array();
 				if(!empty($emails)){
 					foreach($emails as $email){
-						$all_emails[]=$email['email'];
+						$all_ac_emails[]=$email['email'];
 					}	
 				}
-				$this->sync_lists_put_check($all_emails,$setting,$this->settings[$setting]);
+				$this->sync_lists_put_check($all_ac_emails,$setting,$this->settings[$setting]);
 			}
 		}
 		/*
@@ -861,19 +894,18 @@ class Wplms_Activecampaign_Init{
 		if(!empty($courses)){
 			foreach($courses as $course){
 				if(!in_array($course->ID,$course_list_ids)){ // Does not have connected list
-					if(!in_array($course->post_title,$this->lists)){
+					if(!in_array($course->post_name,$this->lists)){
 						$list_args = array(
-							"name"=>$course->post_name,
-  							"languageCode"=> $this->settings['language_code'],
-  							"optinTypes"=>array( "api"=> "single"),
-							"profile"=>array(
-								"description"=>$course->post_excerpt,
-							    "title"=> $course->post_title
-							)
+							"list" => array(
+								"name"=>$course->post_name,
+								"stringid"=>$course->post_name,
+	  							"sender_reminder"=> $this->settings['sender_reminder'],
+	  							"sender_url"=>"https://singhpratibha1432.api-us1.com"
+	  						)
 						);
-						$id = $gr->create_list($list_args);
-						$this->lists[$id] = $course->post_title;
-						$course_list_ids[$id] = $course->post_title;	
+						$id = $ac->create_list($list_args);
+						$this->lists[$id] = $course->post_name;
+						$course_list_ids[$id] = $course->post_name;	
 						update_post_meta($course->ID,'vibe_wplms_activecampaign_list',$id);
 					}
 				}
@@ -923,15 +955,20 @@ class Wplms_Activecampaign_Init{
 
 		foreach ($settings as $setting) {
 			if( $setting->id == 'subscribe_activecampaign_list' ){
-				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+				$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 				$list_id = get_post_meta($course_id,'vibe_wplms_activecampaign_list',true);
 				$user = get_user_by('ID',$user_id);
-				$args = $gr->add_contact(array(
-					'name'=>$user->display_name,
-					'campaign'=>array(
-						'campaignId'=>$this->settings['enable_registration']),
-					'email'=>$user->user_email));
-				$gr->activecampaign_list_function($args,$setting->value);
+				$id = $ac->add_contact(array(
+					'contact'=>array(
+						'email'=>$user->user_email,
+						'firstName'=>$user->display_name
+					)
+				));
+				if(is_numeric($id)){
+					update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$id);
+				}
+			
+				$ac->activecampaign_list_function($args,$setting->value);
 			}
 		}
 	}
@@ -953,32 +990,34 @@ class Wplms_Activecampaign_Init{
 			return;
 
             if(isset($this->settings) && isset($this->settings['activecampaign_api_key']) && isset($this->settings['activecampaign_api_url'])&& !empty($this->settings['enable_registration'])){
-				$gr = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+				$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 				$user_meta=get_userdata($user_id);
 				$user_role=$user_meta->roles;
 				if($user_role != 'instructor'){
 					$user = get_user_by('ID',$user_id);
 
 					$args = apply_filters('wplms_activecampaign_list_filters',array(
-						'name'=>$user->display_name,
-						'campaign'=>array('campaignId'=>$this->settings['enable_registration']),
-						'email'=>$user->user_email),
+						'email'=>$user->user_email,
+						'name'=>$user->display_name),
 					$_POST);
-					
-					$return = $gr->add_contact($args);
+					if(is_numeric($args)){
+						update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$args);
+					}
+					$return = $ac->add_contact($args);
 				}
 				//check if the user role is instructor
 				else{
 					// check if there is list conencted with all isntructors
 					if(isset($_POST['all_instructors_list'])){
 						//if yes add contact to this list
-						$args = apply_filters('wplms_activecampaign_list_filters',array(
-						'name'=>$user->display_name,
-						'campaign'=>array('campaignId'=>$this->settings['all_instructors_list']),
-						'email'=>$user->user_email),
-						$_POST);
-
-						$return = $gr->add_contact($args);
+					$args = apply_filters('wplms_activecampaign_list_filters',array(
+						'email'=>$user->user_email,
+						'name'=>$user->display_name),
+					$_POST);
+					if(is_numeric($args)){
+						update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$args);
+					}
+						$return = $ac->add_contact($args);
 					}
 				}
 			}
