@@ -24,7 +24,7 @@ class Wplms_Activecampaign_Admin{
 
 	private function __construct(){
 		$this->init = Wplms_Activecampaign_Init::init();
-		$this->settings = $this->init->settings;
+		$this->settings = get_option(WPLMS_ACTIVECAMPAIGN_OPTION);
 		add_action('admin_notices', array( $this, 'show_admin_notices' ), 10);
 		add_filter('wplms_lms_settings_tabs',array($this,'setting_tab'));
 		add_filter('lms_settings_tab',array($this,'tab'));
@@ -49,7 +49,7 @@ class Wplms_Activecampaign_Admin{
 	function get_settings(){
 
 		if(!empty($this->settings)){
-			if(empty($this->settings['language_code'])){
+			if(empty($this->settings['sender_reminder'])){
 				$list_creation_button = __('Enter List creation details','wplms-activecampaign');
 			}else{
 				$list_creation_button = __('Click to Create/Sync Lists','wplms-activecampaign');
@@ -96,10 +96,10 @@ class Wplms_Activecampaign_Admin{
 				'desc' => sprintf(__( '%s %s %s , To create a list for every course, list creation details must be saved. reload the page after saving details. ', 'wplms-activecampaign' ),'<a id="sync_course_lists_now" class="button"><span></span>',$list_creation_button,'</a>'),
 			),
 			array(
-				'label' => __( 'Language Code (Required for list creation)', 'wplms-activecampaign' ),
-				'name' => 'language_code',
+				'label' => __( 'Sender Reminder (Required for list creation)', 'wplms-activecampaign' ),
+				'name' => 'sender_reminder',
 				'type' => 'text',
-				'desc' => __( 'Enter langauge code', 'wplms-activecampaign' ),
+				'desc' => __( 'Enter the Message for user why they are enrolled into the list.', 'wplms-activecampaign' ),
 			),
 
 			array(
@@ -135,10 +135,10 @@ class Wplms_Activecampaign_Admin{
 				<tbody>';
 
 		$settings = $this->get_settings();
-
+		$this->save();
 		$this->generate_form($settings);
 		if(isset($_GET['batch'])){
-			$gr = new Wplms_Activecampaign($this->init->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+			$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 			
 		}
 		
@@ -146,7 +146,7 @@ class Wplms_Activecampaign_Admin{
 
 		<?php
 		echo '<tr valign="top"><th colspan="2"><input type="submit" name="save_wplms_activecampaign_settings" class="button button-primary" value="'.__('Save Settings','wplms-activecampaign').'" /></th>';
-		echo '</tbody></table></form>'; ?><style>#sync_course_lists_now span,.sync_lists span{padding:0;} .sync_lists,#sync_course_lists_now{position:relative;}.sync_lists.active,#sync_course_lists_now.active{color: rgba(255,255,255,0.2);} #sync_course_lists_now.active span,.sync_lists.active span{position:absolute;left:0;top:0;width:0;transition: width 1s;height:100%;background:#009dd8;text-align: center;color: #fff;}.company,.company_address,.company_country,.company_zip,.company_state,.company_city,.permission_reminder,.from_name,.from_email,.subject,.language_code{display:none;}</style><script>
+		echo '</tbody></table></form>'; ?><style>#sync_course_lists_now span,.sync_lists span{padding:0;} .sync_lists,#sync_course_lists_now{position:relative;}.sync_lists.active,#sync_course_lists_now.active{color: rgba(255,255,255,0.2);} #sync_course_lists_now.active span,.sync_lists.active span{position:absolute;left:0;top:0;width:0;transition: width 1s;height:100%;background:#009dd8;text-align: center;color: #fff;}.company,.company_address,.company_country,.company_zip,.company_state,.company_city,.permission_reminder,.from_name,.from_email,.subject,.sender_reminder{display:none;}</style><script>
 
 			function isJson(str) {
 
@@ -275,7 +275,7 @@ class Wplms_Activecampaign_Admin{
 				$('#sync_course_lists_now').on('click',function(event){
 					if(!$(this).hasClass('filled')){
 						event.preventDefault();
-						$('.language_code').toggle(200);
+						$('.sender_reminder').toggle(200);
 						if(!$(this).hasClass('filled')){
 							$(this).addClass('filled button-primary');
 
@@ -284,8 +284,8 @@ class Wplms_Activecampaign_Admin{
 				
 					var $this = $(this);
 					if($this.hasClass('active')){return;}
-					var language_code =$('input[name="language_code"]').val();
-				    if (!language_code){
+					var sender_reminder =$('input[name="sender_reminder"]').val();
+				    if (!sender_reminder){
 				      alert("Please fill all the required fields for List creation in Activecampaign");
 				      return false;
 				    }
@@ -367,9 +367,9 @@ class Wplms_Activecampaign_Admin{
 					echo '<th scope="row" class="titledesc"><label>'.$setting['label'].'</label></th>';
 					echo '<td class="forminp"><select class="sync_list_selection" name="'.$setting['name'].'">
 					<option value="">'._x('Disable','disable switch in WPLMS Activecampaign settings','wplms-activecampaign').'</option>';
-					$gr_lists = $this->init->get_lists();
+					$ac_lists = $this->init->get_lists();
 
-					foreach($gr_lists as $key=>$option){
+					foreach($ac_lists as $key=>$option){
 						echo '<option value="'.$key.'" '.(isset($this->settings[$setting['name']])?selected($key,$this->settings[$setting['name']]):'').'>'.$option.'</option>';
 					}
 					echo '</select><a id="'.$setting['name'].'" class="button sync_lists"><span></span>'.__('Sync all Users','wplms-cc').'</a>';
