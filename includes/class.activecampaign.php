@@ -110,11 +110,7 @@ class Wplms_Activecampaign{
 		$args['body'] = json_encode($contact_args);
 		$response = wp_remote_post(  $this->apiurl.'contacts',$args );
 		$body = json_decode( wp_remote_retrieve_body( $response ) );
-	
-		print_r('add contacts');
-		print_r($body);
-		print_r($body->contact->id);
-
+		
 		return $body->contact->id;
 	}
 
