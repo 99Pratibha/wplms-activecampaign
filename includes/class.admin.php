@@ -63,7 +63,7 @@ class Wplms_Activecampaign_Admin{
 				'label' => __( 'ActiveCampaign API Key', 'wplms-activecampaign' ),
 				'name' => 'activecampaign_api_key',
 				'type' => 'text',
-				'desc' => sprintf(__( 'How to get Activecampaign API Key %s Tutorial %s', 'wplms-activecampaign' ),'<a href="http://kb.activecampaign.com/integrations/api-integrations/about-api-keys" target="_blank">','</a>'),
+				'desc' => sprintf(__( 'How to get Activecampaign API Key %s Tutorial %s', 'wplms-activecampaign' ),'<a href="https://help.activecampaign.com/hc/en-us/articles/207317590-Getting-started-with-the-API" target="_blank">','</a>'),
 			),
 			array(
 				'label' => __( 'ActiveCampaign URL', 'wplms-activecampaign' ),
@@ -135,7 +135,7 @@ class Wplms_Activecampaign_Admin{
 				<tbody>';
 
 		$settings = $this->get_settings();
-		$this->save();
+		// $this->save();
 		$this->generate_form($settings);
 		if(isset($_GET['batch'])){
 			$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
