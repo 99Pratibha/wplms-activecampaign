@@ -21,6 +21,8 @@ include_once 'includes/class.config.php';
 include_once 'includes/class.activecampaign.php';
 include_once 'includes/class.admin.php';
 include_once 'includes/class.init.php';
+include_once 'includes/class.widget.php';
+include_once 'includes/recaptchalib.php';
 
 add_action('plugins_loaded','wplms_activecampaign_translations');
 function wplms_activecampaign_translations(){
