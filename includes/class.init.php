@@ -46,20 +46,14 @@ class Wplms_Activecampaign_Init{
 		add_action('woocommerce_new_order',array($this,'check_if_enabled'),10,1);
 		add_action( 'woocommerce_order_status_completed',array($this, 'add_student_to_subscribe_list' ),1,1);
 			
-			
 		add_filter('wplms_course_metabox',array($this,'wplms_course_lists'));
 			
-				
 		add_filter('wplms_course_subscribed',array($this,'add_to_list'),10,2);	
 		add_filter('wplms_course_unsubscribe',array($this,'remove_from_list'),10,2);
-
 		
 		add_action('init',array($this,'auto_sync'));
-
-		
 		add_action('transition_post_status',array($this,'create_list_on_new_course_publish'),10,3);
 		add_action('user_register',array($this,'subscribe_user_to_list'),10,1);
-		
 		
 		/* AJAX FUNCTIONS */
 		add_action('wp_ajax_sync_lists_get',array($this,'sync_lists_get'));
@@ -70,6 +64,11 @@ class Wplms_Activecampaign_Init{
 		add_filter('wplms_registration_form_settings',array($this,'wplms_add_activecampaign_list_in_custom_registration_form'));
 		add_action('wplms_before_registration_form',array($this,'wplms_add_activecampaign_checkbox_on_registration'));
 		add_action('wplms_custom_registration_form_user_added',array($this,'wplms_add_user_to_activecampaign_list_on_registration'),10,3);
+
+		/* Subscribe Widget */
+		add_action('wp_ajax_wplms_activecampaign_subscribe_to_list',array($this,'wplms_activecampaign_subscribe_to_list'));
+		add_action('wp_ajax_nopriv_wplms_activecampaign_subscribe_to_list',array($this,
+			'wplms_activecampaign_subscribe_to_list'));
 	}
 
 
@@ -162,8 +161,10 @@ class Wplms_Activecampaign_Init{
 				$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 
 				$args = apply_filters('wplms_activecampaign_list_filters',array(
+					'contact'=>array(
 						'email'=>$user->user_email,
-						'name'=>$user->display_name),
+						'firstName'=>$user->display_name
+					)),
 				$_POST);
 				if(is_numeric($args)){
 					update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$args);
@@ -207,8 +208,10 @@ class Wplms_Activecampaign_Init{
 		    if ( !empty($user)){ 
 		        $ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
 		        $args = apply_filters('wplms_activecampaign_list_filters',array(
+					'contact'=>array(
 						'email'=>$user->user_email,
-						'name'=>$user->display_name),
+						'firstName'=>$user->display_name
+					)),
 				$_POST);
 				if(is_numeric($args)){
 					update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$args);
@@ -355,7 +358,6 @@ class Wplms_Activecampaign_Init{
 
 				$all_ac_accounts = array();
 				if(!empty($all_ac_ids)){
-					print_r('#3');
 					foreach($all_ac_ids as $ac_id){
 						$all_ac_accounts[$ac_id->user_id]=$ac_id->meta_value;
 					}
@@ -367,7 +369,6 @@ class Wplms_Activecampaign_Init{
 				if(!empty($all_users)){
 					foreach($all_users as $user){
 						if(!in_array($user->ID,array_keys($all_ac_accounts))){
-							print_r('#4');
 							$id = $ac->add_contact(array(
 								'contact'=>array(
 									'email'=>$user->email,
@@ -375,7 +376,6 @@ class Wplms_Activecampaign_Init{
 								)
 							));
 							if(is_numeric($id)){
-								print_r('#5');
 								update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$id);
 								$all_ac_accounts[$user->ID]=$id;
 							}
@@ -440,9 +440,7 @@ class Wplms_Activecampaign_Init{
 				if(!empty($all_users)){
 					foreach($all_users as $user){
 						$all_user_mails[] = $user->user_email;
-						print_r('#1');
 						if(!in_array($user->ID,array_keys($all_ac_accounts))){
-							print_r('#2');
 							$id = $ac->add_contact(array(
 								'contact'=>array(
 									'email'=>$user->email,
@@ -997,8 +995,10 @@ class Wplms_Activecampaign_Init{
 					$user = get_user_by('ID',$user_id);
 
 					$args = apply_filters('wplms_activecampaign_list_filters',array(
+					'contact'=>array(
 						'email'=>$user->user_email,
-						'name'=>$user->display_name),
+						'firstName'=>$user->display_name
+					)),
 					$_POST);
 					if(is_numeric($args)){
 						update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$args);
@@ -1011,8 +1011,10 @@ class Wplms_Activecampaign_Init{
 					if(isset($_POST['all_instructors_list'])){
 						//if yes add contact to this list
 					$args = apply_filters('wplms_activecampaign_list_filters',array(
+					'contact'=>array(
 						'email'=>$user->user_email,
-						'name'=>$user->display_name),
+						'firstName'=>$user->display_name
+					)),
 					$_POST);
 					if(is_numeric($args)){
 						update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$args);
@@ -1022,6 +1024,65 @@ class Wplms_Activecampaign_Init{
 				}
 			}
 		return;
+	}
+
+	function wplms_activecampaign_subscribe_to_list(){
+		if ( !isset($_POST['security']) || !wp_verify_nonce($_POST['security'],$_POST['list']) ){
+		    echo __('Security check Failed. Contact Administrator.','wplms_activecampaign');
+		    die();
+		}
+		$this->get_settings();
+		if(empty($this->settings['activecampaign_api_key'])){
+			echo __('Activecampaign Key is missing in settings.','wplms_activecampaign');
+			die();
+		}
+
+		$dummy = new Wplms_Activecampaign_Subscribe_Widget();
+ 		if( isset($dummy->captcha_enabled) && $dummy->captcha_enabled == 1 ){
+			if(empty($this->settings['recaptcha_secret'])){
+				echo __('Missing Captcha field','wplms_activecampaign');
+				die();
+	 		}else{
+	 			include_once 'recaptchalib.php';
+	 			$objRecaptcha = new ReCaptcha( $this->settings['recaptcha_secret']);
+				$response = $objRecaptcha->verifyResponse($_SERVER['REMOTE_ADDR'], $_POST['captcha']);
+				if(!isset($response->success) || 1 != $response->success){
+					echo __('Invalid Captcha field','wplms_activecampaign');
+					die();
+				}
+	 		}
+ 		}
+		//$list_id = get_post_meta($course_id,'vibe_wplms_getresponse_list',true);
+		$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+		$user = get_user_by('ID',$user_id);
+
+		//valid email
+		if(is_email($_POST['email']));{
+			$args = apply_filters('wplms_activecampaign_list_filters',array(
+					'contact'=>array(
+						'email'=>$_POST['email'],
+						'firstName'=>$_POST['name']
+					)),
+			$_POST);
+			if(is_numeric($args)){
+				update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$args);
+			}
+			$id = $ac->add_contact($args);
+			$update_contact = $ac->update_contact(array(
+				'contactList'=>array(
+					'list'=>$_POST['list'],
+					'contact'=>$id,
+					'status'=>1
+				)
+			));
+
+			if(empty($id)){
+				echo 1;
+			}else{
+				echo $response;
+			}
+			die();
+		}
 	}
 
 }
