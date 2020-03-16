@@ -529,47 +529,48 @@ class Wplms_Activecampaign_Init{
 				}
 			break;
 		}
-
 	}
 	
 	function create_list_on_new_course_publish($new_status,$old_status,$post){
 
 		if($post->post_type != 'course')
+		
 			return;
 
-		if($new_status != 'publish')
-			return;
-
-		$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
-		$list_exists = get_post_meta($post->ID,'vibe_wplms_activecampaign_list',true);
-		if($list_exists)
-			return;
-			global $wpdb;
-		//create new list for course
-		$courses = $wpdb->get_results("SELECT ID,post_title,post_name FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type ='course'");
-		if(!empty($courses)){
-			foreach($courses as $course){
-				$list_args = array(
-					"list" => array(
-						"name"=>$course->post_name,
-						"stringid"=>$course->post_name,
-						"sender_reminder"=> $this->settings['sender_reminder'],
-						"sender_url"=>"https://singhpratibha1432.api-us1.com"
-					)
-				);
-				$id = $ac->create_list($list_args);
-				if($id){
+		if($new_status == 'publish'){
+			
+			$ac = new Wplms_Activecampaign($this->settings['activecampaign_api_key'],$this->settings['activecampaign_api_url']);
+			$list_exists = get_post_meta($post->ID,'vibe_wplms_activecampaign_list',true);
+			if($list_exists)
+				return;
+				global $wpdb;
+			//create new list for course
+			$courses = $wpdb->get_results("SELECT ID,post_title,post_name FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type ='course'");
+			
+			if(!empty($courses)){
+				
+				foreach($courses as $course){
+					$list_args = array(
+						"list" => array(
+							"name"=>$course->post_name,
+							"stringid"=>$course->post_name,
+							"sender_reminder"=> $this->settings['sender_reminder'],
+							"sender_url"=>$this->settings['sender_url']
+						)
+					);
+					$id = $ac->create_list($list_args);
+					if($id){
 						$this->lists[$id] = $course->post_name;
 						$list_ids[]=array('list_id'=>$id,'list_name'=>$course->post_name);
 						update_post_meta($course->ID,'vibe_wplms_activecampaign_list',$id);
-				}
-				else{
-					$id = array_search($course->post_name,$this->lists);
-					$list_ids[]=array('list_id'=>$id,'list_name'=>$course->post_name);
+					}
+					else{
+						$id = array_search($course->post_name,$this->lists);
+						$list_ids[]=array('list_id'=>$id,'list_name'=>$course->post_name);
+					}
 				}
 			}
 		}
-
 	}
 
 	function get_create_course_lists(){
@@ -619,7 +620,7 @@ class Wplms_Activecampaign_Init{
 								"name"=>$course->post_name,
 								"stringid"=>$course->post_name,
 	  							"sender_reminder"=> $this->settings['sender_reminder'],
-	  							"sender_url"=>"https://singhpratibha1432.api-us1.com"
+	  							"sender_url"=>$this->settings['sender_url']
 	  						)
 						);
 						$id = $ac->create_list($list_args);
@@ -898,7 +899,7 @@ class Wplms_Activecampaign_Init{
 								"name"=>$course->post_name,
 								"stringid"=>$course->post_name,
 	  							"sender_reminder"=> $this->settings['sender_reminder'],
-	  							"sender_url"=>"https://singhpratibha1432.api-us1.com"
+	  							"sender_url"=>$this->settings['sender_url']
 	  						)
 						);
 						$id = $ac->create_list($list_args);
@@ -1003,7 +1004,14 @@ class Wplms_Activecampaign_Init{
 					if(is_numeric($args)){
 						update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$args);
 					}
-					$return = $ac->add_contact($args);
+					$id = $ac->add_contact($args);
+					$update_contact = $ac->update_contact(array(
+						'contactList'=>array(
+							'list'=>$_POST['list'],
+							'contact'=>$id,
+							'status'=>1
+						)
+					));
 				}
 				//check if the user role is instructor
 				else{
@@ -1019,7 +1027,14 @@ class Wplms_Activecampaign_Init{
 					if(is_numeric($args)){
 						update_user_meta($user->ID,'vibe_wplms_activecampaign_contact_id',$args);
 					}
-						$return = $ac->add_contact($args);
+						$id = $ac->add_contact($args);
+								$update_contact = $ac->update_contact(array(
+						'contactList'=>array(
+							'list'=>$_POST['list'],
+							'contact'=>$id,
+							'status'=>1
+						)
+					));
 					}
 				}
 			}
