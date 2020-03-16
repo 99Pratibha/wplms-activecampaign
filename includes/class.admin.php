@@ -49,7 +49,7 @@ class Wplms_Activecampaign_Admin{
 	function get_settings(){
 
 		if(!empty($this->settings)){
-			if(empty($this->settings['sender_reminder'])){
+			if(empty($this->settings['sender_reminder'] && $this->settings['sender_url'])){
 				$list_creation_button = __('Enter List creation details','wplms-activecampaign');
 			}else{
 				$list_creation_button = __('Click to Create/Sync Lists','wplms-activecampaign');
@@ -101,6 +101,12 @@ class Wplms_Activecampaign_Admin{
 				'type' => 'text',
 				'desc' => __( 'Enter the Message for user why they are enrolled into the list.', 'wplms-activecampaign' ),
 			),
+			array(
+				'label' => __( 'Sender Url (Required for list creation)', 'wplms-activecampaign' ),
+				'name' => 'sender_url',
+				'type' => 'text',
+				'desc' => __( 'Enter the URL. The website URL this list is for.', 'wplms-activecampaign' ),
+			),
 
 			array(
 				'label' => __( 'Auto-Subscribe/unsubscribe user on Course subscribe/unsubscribe', 'wplms-activecampaign' ),
@@ -146,7 +152,8 @@ class Wplms_Activecampaign_Admin{
 
 		<?php
 		echo '<tr valign="top"><th colspan="2"><input type="submit" name="save_wplms_activecampaign_settings" class="button button-primary" value="'.__('Save Settings','wplms-activecampaign').'" /></th>';
-		echo '</tbody></table></form>'; ?><style>#sync_course_lists_now span,.sync_lists span{padding:0;} .sync_lists,#sync_course_lists_now{position:relative;}.sync_lists.active,#sync_course_lists_now.active{color: rgba(255,255,255,0.2);} #sync_course_lists_now.active span,.sync_lists.active span{position:absolute;left:0;top:0;width:0;transition: width 1s;height:100%;background:#009dd8;text-align: center;color: #fff;}.company,.company_address,.company_country,.company_zip,.company_state,.company_city,.permission_reminder,.from_name,.from_email,.subject,.sender_reminder{display:none;}</style><script>
+		echo '</tbody></table></form>'; ?><style>#sync_course_lists_now span,.sync_lists span{padding:0;} .sync_lists,#sync_course_lists_now{position:relative;}.sync_lists.active,#sync_course_lists_now.active{color: rgba(255,255,255,0.2);} #sync_course_lists_now.active span,.sync_lists.active span{position:absolute;left:0;top:0;width:0;transition: width 1s;height:100%;background:#009dd8;text-align: center;color: #fff;}.company,.company_address,.company_country,.company_zip,.company_state,.company_city,.permission_reminder,.from_name,.from_email,.subject,.sender_reminder,
+			.sender_url{display:none;}</style><script>
 
 			function isJson(str) {
 
@@ -276,6 +283,7 @@ class Wplms_Activecampaign_Admin{
 					if(!$(this).hasClass('filled')){
 						event.preventDefault();
 						$('.sender_reminder').toggle(200);
+						$('.sender_url').toggle(200);
 						if(!$(this).hasClass('filled')){
 							$(this).addClass('filled button-primary');
 
@@ -285,7 +293,8 @@ class Wplms_Activecampaign_Admin{
 					var $this = $(this);
 					if($this.hasClass('active')){return;}
 					var sender_reminder =$('input[name="sender_reminder"]').val();
-				    if (!sender_reminder){
+					var sender_url =$('input[name="sender_url"]').val();
+				    if (!sender_reminder && !sender_url){
 				      alert("Please fill all the required fields for List creation in Activecampaign");
 				      return false;
 				    }
