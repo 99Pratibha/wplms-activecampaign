@@ -126,7 +126,6 @@ class Wplms_Activecampaign{
 		$args['body'] = json_encode($contact_args);
 		$response = wp_remote_post($this->apiurl.'contactLists',$args);
 		$body = json_decode(wp_remote_retrieve_body($response));
-		print_r($body);
 	}
 
 	function remove_contact($contact_id){
