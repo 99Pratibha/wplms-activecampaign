@@ -1,0 +1,26 @@
+*1.1
+*code for add course as a list on AC
+*minimal changes
+*add setting for sender url
+*recaptchalib added to subscribe widget
+*class for adding the widget
+*add code for subscribe widget
+*print_r removed
+*include all the files for subscribe widget
+*save settings called twice
+*print_r removed
+*code for fetching the data from AC and WPLMS add contacts to the list creates list etc.
+*code for settings in LMS>GetResponce
+*add code for fetching the data through api
+*minimal changes in text domain
+*add code to fetch the url of the user of activecampaign from setting
+*add one setting in lms>>activecampaign to enter the url of the user.
+*add activecampaign url of the user
+*remove widget including
+*updater file for the update of the plugin.
+*contains all functions regarding actions on course subscribe/unsubscribe/course specific list etc.
+*configuration of activecampaign
+*to set the setting in the lms
+*file for creating all functions regarding the api calls for list and contact
+*includes all files
+*wplms-activecampaign.php

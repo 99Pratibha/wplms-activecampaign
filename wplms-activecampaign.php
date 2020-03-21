@@ -3,7 +3,7 @@
 Plugin Name: WPLMS ActiveCampaign
 plugin URI: http://www.vibethemes.com/
 Description: This Plugin Interacates with the Active Campaign.
-Version: 1.0
+Version: 1.1
 Author: Mr.Vibe
 Author URI: http://www.vibethemes.com/
 Text Domain: wplms-activecampaign
@@ -13,7 +13,7 @@ Copyright 2016 VibeThemes  (email: vibethemes@gmail.com)
 if(!defined('ABSPATH'))
 exit;
 
-define('WPLMS_ACTIVECAMPAIGN_VERSION','1.0');
+define('WPLMS_ACTIVECAMPAIGN_VERSION','1.1');
 define('WPLMS_ACTIVECAMPAIGN_OPTION','wplms_activecampaign');
 
 include_once 'includes/class.updater.php';
